@@ -20,6 +20,33 @@ import random
 
 
 
+def addChatToUserChatsId(user_id,chat_id,chat_type):
+    user_datas = userDatasSerializers(modelInstance.objects.get(user_id=user_id)).data
+
+    current_user_chats_id=json.loads(user_datas["user_chats_id"].replace("\'","\""))
+
+    chat_info={
+        "chat_id":chat_id,
+    }
+
+    if chat_type=="group":
+        chat_info["chat_type"]="group"
+    elif chat_type=="person":
+        chat_info["chat_type"] = "person"
+
+    current_user_chats_id.append(chat_info)
+
+    modelInstance.objects.filter(user_id=user_id).update(user_chats_id=current_user_chats_id)
+
+
+def checkOwner(user_id,chat_id):
+    participants=getChatParticipants(chat_id)
+
+    for member in participants:
+        if member["user_id"]==int(user_id):
+            if member["level"]=="owner":
+                return True
+    return False
 
 def addMessage(chat_id,message,reply_to,user_id,message_type="message",content_type=None,file_id=None,caption=None):
     new_message_id=generate_new_message_id()
@@ -77,9 +104,7 @@ def ImageById(image_id):
     return image
 
 def FileById(file_id):
-    print("AVAZI")
     file = fileBoxSerializers(modelInstance_fi.objects.get(file_id=file_id)).data
-    print("SAG")
     file_datas=[file["upload"],file["name"]]
 
 
@@ -308,7 +333,6 @@ def getMessages(requests, chat_id):
     chat_data.update({
         "messages":updated_messages
     })
-    print(chat_data)
     return Response(chat_data)
 
 
@@ -339,7 +363,6 @@ def startNewChat(requests):
     tf = json.loads(res_chat_ids['user_chats_id'].replace('\'', '\"'))
 
     for chat_c in f:
-        print(chat_c)
         if  chat_c['chat_type'] == 'person':
             if len(chat_c['participants_id']) == 2 and (
                     str(res_id) in chat_c['participants_id'] and str(target_id) in chat_c['participants_id']) and chat_c[
@@ -399,7 +422,6 @@ def downloadImage(requests):
     BASE_DIR = Path(__file__).resolve().parent.parent
 
     file_path = "D:\DjangoProjectA\whatsAppBackend\wtsappB\\files\images\890444.png"
-    print(file_path)
     if os.path.exists(file_path):
         with open(file_path, 'rb') as fh:
             response = HttpResponse(fh.read(), content_type="application/kl.png")
@@ -431,7 +453,6 @@ def getUsersByPhoneNumber(requests):
                     if user["profile_image_id"]!=-1:
                         image_subdirectory=imageBoxSerializers(modelInstance_im.objects.get(image_id=user["profile_image_id"])).data
                         user["profile_image_id"]=image_subdirectory
-                        print(user)
                     valid_numebrs.append(user)
                     break
 
@@ -531,9 +552,7 @@ def groupsInCommon(requests,chat_id):
         user_chats_id=json.loads(infoByUserid(user_id)["user_chats_id"].replace("\'","\""))
         chats_id=[chat["chat_id"] for chat in user_chats_id if chat["chat_type"]=="group"]
         both_users_chats_id.append(chats_id)
-    print(both_users_chats_id)
     common_groups_id=list(set(both_users_chats_id[0]) & set(both_users_chats_id[1]))
-    print(common_groups_id)
     common_groups=list()
     for cg in common_groups_id:
 
@@ -551,6 +570,80 @@ def groupsInCommon(requests,chat_id):
 
     return Response({"common_groups":common_groups})
 
+
+
+@api_view(["POST"])
+def changeGroupDescription(requests):
+    datas=requests.data.dict()
+    chat_id=datas["chat_id"]
+    new_description=datas["description"]
+    modelInstance_ch.objects.filter(chat_id=chat_id).update(group_description=new_description)
+    return Response({
+        "successful":"description_changed"
+    })
+
+
+
+@api_view(["POST"])
+def addParticipants(requests):
+    datas=requests.data.dict()
+    participants_to_add=json.loads(datas["participants"])
+    chat_id=datas["chat_id"]
+    user_id=datas["user_id"]
+
+
+
+    if not checkOwner(user_id,chat_id):
+         return Response({"error":"permission not permitted"})
+
+    current_participants=getChatParticipants(chat_id)
+
+    updated_participants=current_participants+participants_to_add
+
+    modelInstance_ch.objects.filter(chat_id=chat_id).update(participants=updated_participants)
+    for member in participants_to_add:
+        addChatToUserChatsId(member["user_id"],chat_id,"group")
+
+    return Response({
+        "successful":"participants added"
+    })
+
+
+@api_view(["POST"])
+def changeGroupName(requests):
+    datas=requests.data.dict()
+    chat_id=datas["chat_id"]
+    user_id=datas["user_id"]
+    new_group_name=datas["new_subject"]
+
+    if not checkOwner(user_id,chat_id):
+        return Response({"error":"permission not permitted"})
+    modelInstance_ch.objects.filter(chat_id=chat_id).update(group_name=new_group_name)
+    return Response({"subject_changed":"successful"})
+
+
+@api_view(["POST"])
+def changeGroupImage(requests):
+
+    new_image_id=generate_group_file_id()
+
+    datas=requests.data.dict()
+    chat_id=datas["chat_id"]
+    user_id=datas["user_id"]
+
+    if not checkOwner(user_id,chat_id):
+        return Response({"error":"permission not permitted"})
+
+    chat_to_update=modelInstance_ch.objects.filter(chat_id=chat_id)
+
+    image_name = datetime.datetime.now().microsecond
+    image_to_save = ContentFile(base64.b64decode(requests.data.get("group_image")), name=str(image_name) + ".png")
+    image = modelInstance_im(upload=image_to_save, image_id=new_image_id)
+
+    chat_to_update.update(group_image_id=new_image_id)
+    image.save()
+
+    return Response({"image_changed":"successful"})
 
 
 @api_view(["POST"])
@@ -585,7 +678,6 @@ def pvOtherSide(requests,user_id,chat_id):
     sides=getChatParticipants(chat_id)
 
     otherSide=list(filter(lambda x:x!=user_id,sides))[0]
-    print(otherSide)
     return Response({
         "other_side":otherSide
     })
@@ -601,8 +693,7 @@ def createGroup(requests):
     participants = requests.data["participants"]
     group_name = requests.data["group_name"]
     group_description = requests.data["group_description"]
-    group_image = requests.data["group_image"]
-
+    group_image_id=-1
     if "group_image" in requests.data.dict():
         group_image_id=generate_group_file_id()
 
@@ -623,7 +714,6 @@ def createGroup(requests):
         dt = userDatasSerializers(modelInstance.objects.get(user_id=user["user_id"])).data
 
         user_chats_id = json.loads(dt["user_chats_id"].replace("\'", "\""))
-        print(user_chats_id)
         iTemp={'chat_id': chat_id, 'chat_type': 'group'}
         user_chats_id.append(iTemp)
         modelInstance.objects.filter(user_id=user["user_id"]).update(user_chats_id=user_chats_id)

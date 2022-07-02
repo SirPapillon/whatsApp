@@ -20,6 +20,11 @@ urlpatterns=[
     path("createGroup/", views.createGroup),
     path("groupInCommon/chat_id=<chat_id>", views.groupsInCommon),
     path("sendFile/", views.uploadFile),
+    path("changeGroupImage/", views.changeGroupImage),
+    path("changeGroupName/", views.changeGroupName),
+    path("addParticipants/", views.addParticipants),
+    path("changeGroupDescription/", views.changeGroupDescription),
+
     path("exitGroup/", views.exitGroup),
 ]
 
