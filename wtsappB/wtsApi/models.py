@@ -36,8 +36,16 @@ class chatBox(models.Model):
 
 
 def user_directory_path(instance, filename):
-    # file will be uploaded to MEDIA_ROOT / user_<id>/<filename>
-    return 'images/{0}'.format(filename)
+    return '{0}'.format(filename)
+
+class fileBox(models.Model):
+    upload=models.FileField(upload_to=user_directory_path)
+    content_type=models.TextField(default="")
+    file_id=models.IntegerField(default=-1)
+    sender_id=models.IntegerField(default=-1)
+    name=models.CharField(max_length=150)
+
+
 class imageBox(models.Model):
     IMAGE_USAGE_CHOSEN=(
         ("post", "post"),
