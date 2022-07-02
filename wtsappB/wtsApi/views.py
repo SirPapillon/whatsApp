@@ -48,6 +48,8 @@ def checkOwner(user_id,chat_id):
                 return True
     return False
 
+hj
+
 def addMessage(chat_id,message,reply_to,user_id,message_type="message",content_type=None,file_id=None,caption=None):
     new_message_id=generate_new_message_id()
     dt = chatBoxSerializers(modelInstance_ch.objects.get(chat_id=chat_id)).data
